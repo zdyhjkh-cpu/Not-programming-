@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function myData()   { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function isTeacher() { return signedIn() && myData().role == 'teacher'; }
+
+    match /users/{uid} {
+      allow read:   if signedIn() && (request.auth.uid == uid || isTeacher());
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow update: if signedIn() && request.auth.uid == uid;
+      allow delete: if isTeacher();
+    }
+    match /activity/{id} {
+      allow create: if signedIn();
+      allow read:   if signedIn();
+      allow update, delete: if isTeacher();
+    }
+    match /courses/{id} {
+      allow read:  if true;
+      allow write: if isTeacher();
+    }
+    match /enrollments/{id} {
+      allow create: if signedIn();
+      allow read:   if signedIn();
+      allow update, delete: if isTeacher();
+    }
+    match /payments/{id} {
+      allow create: if signedIn();
+      allow read:   if signedIn();
+      allow update, delete: if isTeacher();
+    }
+    // ✅ الامتحانات — الكل يقرأ، المعلم يكتب، الطالب يسلّم نتائجه
+    match /exams/{id} {
+      allow read:  if signedIn();
+      allow write: if isTeacher();
+    }
+    match /examResults/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow read:   if signedIn() && (isTeacher() || resource.data.uid == request.auth.uid);
+      allow update, delete: if isTeacher();
+    }
+    match /config/{id} {
+      allow read:  if true;
+      allow write: if isTeacher();
+    }
+  }
+}
